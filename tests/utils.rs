@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod utils_tests{
     use glam::Vec3A;
-    use raytracing::utils::{intersect_plane, intersect_triangle};
+    use raytracing::utils::{intersect_plane, intersect_triangle, intersect_square};
     
     #[test]
     fn intersect_plane_test() {
@@ -25,6 +25,20 @@ mod utils_tests{
         let rd = Vec3A::new(0., 0., -1.);
         let result = intersect_triangle(p1, p2, p3, ro, rd);
         let real_value: Option<Vec3A> = Some(Vec3A::new(1., 1., 0.));
+        assert_eq!(result, real_value);
+    }
+
+    #[test]
+    fn intersect_square_test() {
+        let p1 = Vec3A::new(-2., -1., 0.);
+        let p2 = Vec3A::new(6., 5., 0.);
+        let p3 = Vec3A::new(0., 13., 0.);
+        let p4 = Vec3A::new(-8., 7., 0.);
+
+        let ro = Vec3A::new(2., 2., 1.);
+        let rd = Vec3A::new(0., 0., -1.);
+        let result = intersect_square(p1, p2, p3, p4, ro, rd);
+        let real_value: Option<Vec3A> = Some(Vec3A::new(2., 2., 0.));
         assert_eq!(result, real_value);
     }
 }
