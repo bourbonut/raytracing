@@ -66,13 +66,13 @@ pub fn run_lib() {
 }
 
 pub fn small_test() {
-    let mut file = File::open("cube.stl");
+    let file = File::open("cube.stl");
     match file{
         Ok(mut x) => {
             let mesh = Mesh::new(&mut x);
             println!("Ok");
         }
-        Err(x) => {
+        Err(_) => {
             println!("Error");
         }
     }
