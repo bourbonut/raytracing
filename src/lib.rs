@@ -2,6 +2,7 @@ pub mod engine;
 pub mod utils;
 pub mod mesh;
 
+use std::time::Instant;
 use glam::Vec3A;
 use image;
 use ndarray::Array2;
@@ -70,7 +71,26 @@ pub fn small_test() {
     match file{
         Ok(mut x) => {
             let mesh = Mesh::new(&mut x);
-            println!("Ok");
+            let ray_origin = Vec3A::new(0., 0., 30.);
+            let ray_direction = Vec3A::new(0., 0., -1.);
+            match mesh {
+                Ok(m) => { 
+                    let now = Instant::now();
+                    let x = m.intersect(ray_origin, ray_direction);
+                    let new_now = Instant::now();
+                    println!("{:?}", new_now - now);
+                    match x {
+                            Some(x) => {
+                                let a = x[0];
+                                // let b = x[1];
+                                println!("{:?}", a);
+                            }
+                            None => { println!("No intersection found."); }
+                        }
+                    println!("Ok");
+                    }
+                Err(_) => { println!("Error for mesh"); }
+            }
         }
         Err(_) => {
             println!("Error");
