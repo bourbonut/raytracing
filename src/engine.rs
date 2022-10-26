@@ -1,3 +1,4 @@
+use crate::mesh::Mesh;
 // use crate::utils::color::RGBColor;
 // use crate::utils::geometry::Line;
 // use crate::utils::geometry::Point;
@@ -16,7 +17,7 @@ pub struct RTEngine {
     pub pos_camera: Vec3A,
     pub pos_pixels: Array2<Vec3A>,
     pub pos_light: Vec3A,
-    pub objects: Vec<Sphere>,
+    pub objects: Vec<Mesh>,
     pub material: Vec<Material>,
 }
 
@@ -68,25 +69,27 @@ impl RTEngine {
         let mut reflection = 1.;
 
         for _ in 0..max_depth {
-            let (target_index, min_distance): (i32, f32) =
+            let (target_index, point_normal): (i32, [Vec3A; 2]) =
                 self._nearest_intersected_object(origin, direction);
             if target_index <= -1 {
                 break;
             }
             // Object and material given the ray
-            let nearest_object: Sphere = self.objects[target_index as usize];
+            // let nearest_object: Mesh = self.objects[target_index as usize];
             let material: Material = self.material[target_index as usize];
 
             // Intersection computation
-            let intersection = origin + min_distance * direction;
-            let normal_to_surface = (intersection - nearest_object.center).normalize();
+            let intersection = point_normal[0];
+            // println!("{:?}", intersection);
+            let normal_to_surface = point_normal[1].normalize();
             let shifted_point = intersection + 1e-5 * normal_to_surface;
             let intersection_to_light = (self.pos_light - shifted_point).normalize();
 
-            let (_, min_distance): (i32, f32) =
+            let (_, point_normal): (i32, [Vec3A; 2]) =
                 self._nearest_intersected_object(shifted_point, intersection_to_light);
             let intersection_to_light_distance = (self.pos_light - intersection).length();
-            if min_distance < intersection_to_light_distance {
+            // println!("{:?}", (shifted_point - point_normal[0]).length());
+            if (shifted_point - point_normal[0]).length() < intersection_to_light_distance {
                 break;
             }
 
@@ -124,25 +127,28 @@ impl RTEngine {
     ///
     /// `ray_origin` - (`Vec3A`) origin of the ray
     /// `ray_direction` - (`Vec3A`) direction of the ray
-    fn _nearest_intersected_object(&self, ray_origin: Vec3A, ray_direction: Vec3A) -> (i32, f32) {
-        let mut distances = Vec::new();
+    fn _nearest_intersected_object(&self, ray_origin: Vec3A, ray_direction: Vec3A) -> (i32, [Vec3A; 2]) {
+        let mut results : Vec<Option<[Vec3A; 2]>> = Vec::new();
         for obj in self.objects.iter() {
-            distances.push(sphere_intersect(
-                obj.center,
-                obj.radius,
-                ray_origin,
-                ray_direction,
-            ));
+            results.push(obj.intersect(ray_origin, ray_direction));
         }
         let mut nearest_object: i32 = -1;
         let mut min_distance: f32 = std::f32::INFINITY;
-        for (index, distance) in distances.iter().enumerate() {
-            if distance.is_sign_positive() && distance < &min_distance {
-                min_distance = *distance;
-                nearest_object = index as i32;
+        let mut sol : [Vec3A; 2] = [Vec3A::ONE, Vec3A::ONE];
+        for (index, result) in results.iter().enumerate() {
+            match result {
+                Some(point_normal) => {
+                    let distance = (ray_origin - point_normal[0]).length();
+                    if distance < min_distance {
+                        min_distance = distance;
+                        nearest_object = index as i32;
+                        sol = *point_normal;
+                    }
+                }
+                None => { continue; }
             }
         }
-        (nearest_object, min_distance)
+        (nearest_object, sol)
     }
 }
 
@@ -155,6 +161,7 @@ impl RTEngine {
 /// `radius` - (`f32`) radius of the sphere
 /// `ray_origin` - (`Vec3A`) origin of the ray
 /// `ray_direction` - (`Vec3A`) direction of the ray
+#[allow(dead_code)]
 fn sphere_intersect(center: Vec3A, radius: f32, ray_origin: Vec3A, ray_direction: Vec3A) -> f32 {
     let b = ray_direction.dot(ray_origin - center) * 2.;
     let c = (ray_origin - center).length_squared() - radius * radius;
@@ -181,7 +188,7 @@ fn reflected(vector: Vec3A, axis: Vec3A) -> Vec3A {
     vector - 2. * vector.dot(axis) * axis
 }
 
-/// Return the transmittion ray according to
+/// Return the transmitted ray according to
 /// T = eta_it I + (eta_it cos(theta_i) - sqrt(1 + eta_it^2 * (cos(theta_i)^2 - 1))) N
 /// where I is the incidence ray and N is the surface normal
 ///

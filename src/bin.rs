@@ -3,5 +3,6 @@ use raytracing::small_test;
 
 fn main() {
     // run_lib();
-    small_test();
+    // cube_raytracing();
+    small_test()
 }
