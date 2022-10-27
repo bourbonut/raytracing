@@ -1,8 +1,8 @@
 // use raytracing::run_lib;
-use raytracing::small_test;
+use raytracing::cube_raytracing;
 
 fn main() {
     // run_lib();
-    // cube_raytracing();
-    small_test()
+    cube_raytracing();
+    // small_test()
 }

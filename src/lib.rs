@@ -9,7 +9,7 @@ use ndarray::Array2;
 
 use crate::engine::Material;
 use crate::engine::RTEngine;
-use crate::engine::Sphere;
+// use crate::engine::Sphere;
 
 use std::fs::File;
 use crate::mesh::Mesh;
@@ -71,8 +71,8 @@ pub fn small_test() {
     match file{
         Ok(mut x) => {
             let mesh = Mesh::new(&mut x);
-            let ray_origin = Vec3A::new(0., 0., -30.);
-            let ray_direction = -Vec3A::new(0., -1., -31.);
+            let ray_origin = Vec3A::new(0., 0., 30.);
+            let ray_direction = Vec3A::new(0., -1., -31.);
             match mesh {
                 Ok(m) => { 
                     let now = Instant::now();
