@@ -71,8 +71,8 @@ pub fn small_test() {
     match file{
         Ok(mut x) => {
             let mesh = Mesh::new(&mut x);
-            let ray_origin = Vec3A::new(0., 0., 30.);
-            let ray_direction = Vec3A::new(0., -1., -31.);
+            let ray_origin = Vec3A::new(0., 0., 0.3);
+            let ray_direction = Vec3A::new(0., -0.01, -0.31);
             match mesh {
                 Ok(m) => { 
                     let now = Instant::now();
@@ -82,8 +82,8 @@ pub fn small_test() {
                     match x {
                             Some(x) => {
                                 let a = x[0];
-                                // let b = x[1];
-                                println!("{:?}", a);
+                                let b = x[1];
+                                println!("Intersection point = {:?}, normal = {:?}", a, b);
                             }
                             None => { println!("No intersection found."); }
                         }
@@ -99,8 +99,8 @@ pub fn small_test() {
 }
 
 pub fn cube_raytracing() {
-    let width = 192;
-    let height = 108;
+    let width = 1920;
+    let height = 1080;
     let ratio: f32 = width as f32 / height as f32;
     let screen = (-1., 1. / ratio, 1., -1. / ratio);
     let mut pixels = Array2::<Vec3A>::default((height, width));
@@ -132,10 +132,11 @@ pub fn cube_raytracing() {
                     let all_objects: Vec<Mesh> = vec![cube];
                     let materials: Vec<Material> = vec![white_material];
                     let mut rte = RTEngine {
-                        pos_camera: Vec3A::new(0., 0., 100.),
+                        // pos_camera: Vec3A::new(-0.5, 0.2, 1.).normalize(),
+                        pos_camera: Vec3A::Z,
                         pos_pixels: pixels,
                         // pos_light: Vec3A::new(50., 50., 50.),
-                        pos_light: Vec3A::new(0., 0., 50.),
+                        pos_light: Vec3A::new(18., 18., 18.),
                         objects: all_objects,
                         material: materials,
                     };

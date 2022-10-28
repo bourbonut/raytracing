@@ -45,7 +45,7 @@ impl RTEngine {
 
         let mut colors = Array2::<Vec3A>::default((width, height));
         for ((i, j), pixel) in self.pos_pixels.indexed_iter() {
-            colors[[i, j]] = self._color_contribution(*pixel, 3);
+            colors[[i, j]] = self._color_contribution(*pixel, 1);
         }
 
         return colors;
@@ -69,7 +69,8 @@ impl RTEngine {
         let mut reflection = 1.;
 
         for _ in 0..max_depth {
-            let (target_index, point_normal): (i32, [Vec3A; 2]) =
+            // println!("origin = {:?}, direction = {:?}", origin, direction);
+            let (target_index, _, point_normal): (i32, f32, [Vec3A; 2]) =
                 self._nearest_intersected_object(origin, direction);
             if target_index <= -1 {
                 break;
@@ -80,16 +81,17 @@ impl RTEngine {
 
             // Intersection computation
             let intersection = point_normal[0];
-            // println!("{:?}", intersection);
+            println!("intersection = {:?}", intersection);
+            println!("origin = {:?}, direction = {:?}", origin, direction);
             let normal_to_surface = point_normal[1].normalize();
             let shifted_point = intersection + 1e-5 * normal_to_surface;
             let intersection_to_light = (self.pos_light - shifted_point).normalize();
 
-            let (_, point_normal): (i32, [Vec3A; 2]) =
+            let (_, min_distance, _): (i32, f32, [Vec3A; 2]) =
                 self._nearest_intersected_object(shifted_point, intersection_to_light);
             let intersection_to_light_distance = (self.pos_light - intersection).length();
-            // println!("{:?}", (shifted_point - point_normal[0]).length());
-            if (shifted_point - point_normal[0]).length() < intersection_to_light_distance {
+            // println!("min_distance = {:?}, intersection_to_light = {:?}", (shifted_point - point_normal[0]).length(), intersection_to_light_distance);
+            if min_distance < intersection_to_light_distance {
                 break;
             }
 
@@ -127,7 +129,7 @@ impl RTEngine {
     ///
     /// `ray_origin` - (`Vec3A`) origin of the ray
     /// `ray_direction` - (`Vec3A`) direction of the ray
-    fn _nearest_intersected_object(&self, ray_origin: Vec3A, ray_direction: Vec3A) -> (i32, [Vec3A; 2]) {
+    fn _nearest_intersected_object(&self, ray_origin: Vec3A, ray_direction: Vec3A) -> (i32, f32, [Vec3A; 2]) {
         let mut results : Vec<Option<[Vec3A; 2]>> = Vec::new();
         for obj in self.objects.iter() {
             results.push(obj.intersect(ray_origin, ray_direction));
@@ -148,7 +150,7 @@ impl RTEngine {
                 None => { continue; }
             }
         }
-        (nearest_object, sol)
+        (nearest_object, min_distance, sol)
     }
 }
 

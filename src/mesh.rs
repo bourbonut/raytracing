@@ -169,7 +169,7 @@ impl Mesh {
                                 }
                             }
                             if found { break; }
-                            index = index - 1;
+                            if index == 0 { break; } else {index = index - 1};
                             radius = self.radii[index];
                             match self._spherical_intersection(to_f32(radius), ray_origin, ray_direction) {
                                 Some(point) => {current_point = point }
