@@ -160,11 +160,21 @@ impl Mesh {
                         let mut current_point = imax;
                         let mut result : Option<[Vec3A; 2]> = None;
                         let mut found = false;
+                        let mut dist = f32::INFINITY;
                         while index >= index_min {
                             let candidates = self.rtree[&radius].nearest_neighbor_iter(&current_point.to_array());
                             for triangle in candidates.map(|x| self.hashtable[&hash_function(&Vec3A::from_array(*x))]) {
                                 match intersect_triangle(triangle.p1, triangle.p2, triangle.p3, ray_origin, ray_direction) {
-                                    Some(sol) => { result = Some([sol, triangle.normal]); found = true; break; }
+                                    Some(sol) => { 
+                                        let d = (sol - ray_origin).length();
+                                        if  d < dist {
+                                            result = Some([sol, triangle.normal]);
+                                            found = true;
+                                            dist = d;
+                                        } else {
+                                            continue;
+                                        }
+                                    }
                                     None => { continue; }
                                 }
                             }

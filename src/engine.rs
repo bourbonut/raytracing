@@ -81,8 +81,8 @@ impl RTEngine {
 
             // Intersection computation
             let intersection = point_normal[0];
-            println!("intersection = {:?}", intersection);
-            println!("origin = {:?}, direction = {:?}", origin, direction);
+            // println!("intersection = {:?}", intersection);
+            // println!("origin = {:?}, direction = {:?}", origin, direction);
             let normal_to_surface = point_normal[1].normalize();
             let shifted_point = intersection + 1e-5 * normal_to_surface;
             let intersection_to_light = (self.pos_light - shifted_point).normalize();

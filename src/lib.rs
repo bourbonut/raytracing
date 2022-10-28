@@ -132,11 +132,11 @@ pub fn cube_raytracing() {
                     let all_objects: Vec<Mesh> = vec![cube];
                     let materials: Vec<Material> = vec![white_material];
                     let mut rte = RTEngine {
-                        // pos_camera: Vec3A::new(-0.5, 0.2, 1.).normalize(),
-                        pos_camera: Vec3A::Z,
+                        pos_camera: Vec3A::new(-0.5, 0.2, 1.).normalize(),
+                        // pos_camera: Vec3A::Z,
                         pos_pixels: pixels,
-                        // pos_light: Vec3A::new(50., 50., 50.),
-                        pos_light: Vec3A::new(18., 18., 18.),
+                        pos_light: Vec3A::new(0., 0., 5.),
+                        // pos_light: Vec3A::new(18., 18., 18.),
                         objects: all_objects,
                         material: materials,
                     };
