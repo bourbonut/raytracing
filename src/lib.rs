@@ -115,7 +115,8 @@ pub fn cube_raytracing() {
         }
     }
 
-    let file = File::open("cube.stl");
+    // let file = File::open("cube.stl");
+    let file = File::open("bevelgear.stl");
     match file {
         Ok(mut x) => {
             let mesh = Mesh::new(&mut x);
@@ -135,8 +136,7 @@ pub fn cube_raytracing() {
                         pos_camera: Vec3A::new(-0.5, 0.2, 1.).normalize(),
                         // pos_camera: Vec3A::Z,
                         pos_pixels: pixels,
-                        pos_light: Vec3A::new(0., 0., 5.),
-                        // pos_light: Vec3A::new(18., 18., 18.),
+                        pos_light: Vec3A::new(18., 18., 18.),
                         objects: all_objects,
                         material: materials,
                     };

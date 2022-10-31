@@ -3,7 +3,7 @@ use crate::mesh::Mesh;
 // use crate::utils::geometry::Line;
 // use crate::utils::geometry::Point;
 
-use glam::Vec3A;
+use glam::{Vec3A, Vec3, Affine3A, Quat};
 use ndarray::Array2;
 
 // Avoid recurrent algorithm
@@ -81,8 +81,8 @@ impl RTEngine {
 
             // Intersection computation
             let intersection = point_normal[0];
-            // println!("intersection = {:?}", intersection);
-            // println!("origin = {:?}, direction = {:?}", origin, direction);
+            println!("intersection = {:?}", intersection);
+            println!("origin = {:?}, direction = {:?}", origin, direction);
             let normal_to_surface = point_normal[1].normalize();
             let shifted_point = intersection + 1e-5 * normal_to_surface;
             let intersection_to_light = (self.pos_light - shifted_point).normalize();
@@ -120,6 +120,24 @@ impl RTEngine {
             direction = reflected(direction, normal_to_surface);
         }
         return clip(255. * color, 0., 255.);
+    }
+
+    fn _change_reference(reference: &Vec3A) -> [Affine3A; 2] {
+        let translation = if (*reference - Vec3A::Z).length() == 0. { 
+            Affine3A::IDENTITY 
+        } else { 
+            Affine3A::from_translation(Vec3::from(*reference) - Vec3::Z)
+        };
+        let rotation = if reference.cross(Vec3A::Z).length() == 0. {
+            Affine3A::IDENTITY 
+        } else {
+            let mag = reference.length();
+            let angle = if mag != 0. {(reference.dot(Vec3A::Z) / mag).acos()} else {0}
+            let axis = Vec3A::Z.cross(reference);
+            let quat = Quat::from_axis_angle(axis, angle);
+            Affine3A::from_quat(quat);
+        }
+        [translation, rotation]
     }
 
     /// Return the index and the distance of
