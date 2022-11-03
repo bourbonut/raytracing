@@ -122,23 +122,23 @@ impl RTEngine {
         return clip(255. * color, 0., 255.);
     }
 
-    fn _change_reference(reference: &Vec3A) -> [Affine3A; 2] {
-        let translation = if (*reference - Vec3A::Z).length() == 0. { 
-            Affine3A::IDENTITY 
-        } else { 
-            Affine3A::from_translation(Vec3::from(*reference) - Vec3::Z)
-        };
-        let rotation = if reference.cross(Vec3A::Z).length() == 0. {
-            Affine3A::IDENTITY 
-        } else {
-            let mag = reference.length();
-            let angle = if mag != 0. {(reference.dot(Vec3A::Z) / mag).acos()} else {0}
-            let axis = Vec3A::Z.cross(reference);
-            let quat = Quat::from_axis_angle(axis, angle);
-            Affine3A::from_quat(quat);
-        }
-        [translation, rotation]
-    }
+    // fn _change_reference(reference: &Vec3A) -> [Affine3A; 2] {
+    //     let translation = if (*reference - Vec3A::Z).length() == 0. { 
+    //         Affine3A::IDENTITY 
+    //     } else { 
+    //         Affine3A::from_translation(Vec3::from(*reference) - Vec3::Z)
+    //     };
+    //     let rotation = if reference.cross(Vec3A::Z).length() == 0. {
+    //         Affine3A::IDENTITY 
+    //     } else {
+    //         let mag = reference.length();
+    //         let angle = if mag != 0. {(reference.dot(Vec3A::Z) / mag).acos()} else {0}
+    //         let axis = Vec3A::Z.cross(reference);
+    //         let quat = Quat::from_axis_angle(axis, angle);
+    //         Affine3A::from_quat(quat);
+    //     }
+    //     [translation, rotation]
+    // }
 
     /// Return the index and the distance of
     /// the nearest intersected object of the collection

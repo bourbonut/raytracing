@@ -1,14 +1,15 @@
 // use crate::utils::intersect_triangle;
 use stl::read_stl;
-use glam::Vec3A;
+use glam::{Vec3A, Vec3};
 use std::fs::File;
 use std::io::Result;
-use rstar::RTree;
+use std::slice::Iter;
+// use rstar::RTree;
 use std::collections::{HashMap, HashSet};
 
-use crate::utils::intersect_triangle;
+use crate::utils::{intersect_square, intersect_triangle};
 
-type Tree = HashMap<u32, RTree<[f32; 3]>>;
+// type Neighbors = Vec<HashSet<usize>>;
 
 #[derive(Default, Copy, Clone)]
 pub struct Triangle{
@@ -20,27 +21,106 @@ pub struct Triangle{
 }
 
 #[derive(Default, Clone)]
+pub struct Package{
+    pub bound_min: Vec3A,
+    pub bound_max: Vec3A,
+    pub bounds: [[Vec3A; 4]; 6],
+}
+
+#[derive(Default, Clone)]
+pub struct Tree{
+    pub keys: HashMap<u32, usize>,
+    pub values: Vec<HashSet<usize>>,
+}
+
+#[derive(Default, Clone)]
 pub struct Mesh{
     pub triangles: Vec<Triangle>,
     pub center: Vec3A,
-    pub rtree: Tree,
-    pub radii: Vec<u32>,
-    pub hashtable: HashMap<i32, Triangle>,
-    pub max_radius: f32,
+    pub tree: Tree,
+    pub package: Package,
+    pub dx: u32,
+    pub dy: u32,
+    pub dz: u32,
+    pub unit: f32,
 }
 
-fn _to_triangle(triangle: &stl::Triangle) -> Triangle {        
-    let convert = |array: [f32; 3]| Vec3A::new(array[0], array[1], array[2]);
-    let p1 = convert(triangle.v1);
-    let p2 = convert(triangle.v2);
-    let p3 = convert(triangle.v3);
-    let center = (p1 + p2 + p3) / 3.;
-    Triangle { p1, p2, p3, normal: convert(triangle.normal), center}
+impl Package {
+    pub fn new(bound_min: Vec3A, bound_max:Vec3A) -> Self {
+        let x_min = bound_min.x;
+        let y_min = bound_min.y;
+        let z_min = bound_min.z;
+        let x_max = bound_max.x;
+        let y_max = bound_max.y;
+        let z_max = bound_max.z;
+        let bounds = [
+            [
+                Vec3A::new(x_min, y_min, z_min),
+                Vec3A::new(x_min, y_max, z_min),
+                Vec3A::new(x_min, y_min, z_max),
+                Vec3A::new(x_min, y_max, z_max)
+            ],
+            [
+                Vec3A::new(x_max, y_min, z_min),
+                Vec3A::new(x_max, y_max, z_min),
+                Vec3A::new(x_max, y_min, z_max),
+                Vec3A::new(x_max, y_max, z_max)
+            ],
+            [
+                Vec3A::new(x_min, y_min, z_min),
+                Vec3A::new(x_min, y_min, z_max),
+                Vec3A::new(x_max, y_min, z_min),
+                Vec3A::new(x_max, y_min, z_max),
+            ],
+            [
+                Vec3A::new(x_min, y_max, z_min),
+                Vec3A::new(x_min, y_max, z_max),
+                Vec3A::new(x_max, y_max, z_min),
+                Vec3A::new(x_max, y_max, z_max),
+            ],
+            [
+                Vec3A::new(x_min, y_min, z_min),
+                Vec3A::new(x_min, y_max, z_min),
+                Vec3A::new(x_max, y_min, z_min),
+                Vec3A::new(x_max, y_max, z_min),
+            ],
+            [
+                Vec3A::new(x_min, y_min, z_max),
+                Vec3A::new(x_min, y_max, z_max),
+                Vec3A::new(x_max, y_min, z_max),
+                Vec3A::new(x_max, y_max, z_max),
+            ]
+        ];
+        Package { bound_min, bound_max, bounds }
+    }
+    
+    pub fn iter(&self) -> Iter<[Vec3A; 4]> {
+        self.bounds.iter()
+    }
 }
 
-fn hash_function(v: &Vec3A) -> i32 {
-    let unique = |x, y, z| z / ((x + y) * (x + y) + x + y + 1.);
-    (unique(v.x, v.y, v.z) * 100_000.) as i32
+impl Tree {
+    pub fn contains(&self, key: &u32, value: &usize) -> bool {
+        self.values[self.keys[key]].contains(value)
+    }
+
+    pub fn contains_key(&self, key: &u32) -> bool {
+        self.keys.contains_key(key)
+    }
+
+    pub fn insert_key(&mut self, key:u32) {
+        let length = self.values.len();
+        self.keys.insert(key, length);
+        self.values.push(HashSet::new());
+    }
+
+    pub fn insert(&mut self, key: &u32, value: usize) -> bool {
+        self.values[self.keys[key]].insert(value)
+    }
+
+    pub fn get(&self, key: &u32) -> &HashSet<usize> {
+        &self.values[self.keys[key]]
+    }
 }
 
 impl Mesh {
@@ -60,138 +140,172 @@ impl Mesh {
                     triangles.push(Triangle{p1, p2, p3, normal: convert(triangle.normal), center});
                 }
                 mesh_center /= x.triangles.len() as f32;
-                let get_radii = |t:&Triangle| [t.p1, t.p2, t.p3].iter().map(|x| (*x - mesh_center).length()).fold(f32::NAN, f32::max);
-                let max_radius = triangles.iter().map(get_radii).fold(f32::NAN, f32::max);
 
-                // Initialization of tree
-                let mut rtree: Tree = HashMap::new();
-                let mut hs: HashSet<u32> = HashSet::new();
-                for center in triangles.iter().map(|t| t.center){
-                    let radius: u32 = ((center - mesh_center).length() * 100_000.) as u32;
-                    hs.insert(radius);
-                    let array = center.to_array();
-                    if !rtree.contains_key(&radius){ rtree.insert(radius, RTree::new()); }
-                    if let Some(x) = rtree.get_mut(&radius) { x.insert(array); }
+                // Get the bounds of the mesh and the minimum distance
+                let mut bound_min = Vec3A::ONE * f32::INFINITY;
+                let mut bound_max = -Vec3A::ONE * f32::INFINITY;
+                let mut unit = f32::INFINITY;
+                for triangle in triangles.iter() {
+                    bound_max = bound_max.max(triangle.p1).max(triangle.p2).max(triangle.p3);
+                    bound_min = bound_min.min(triangle.p1).min(triangle.p2).min(triangle.p3);
+                    let a = (triangle.p1 - triangle.p2).length();
+                    let b = (triangle.p2 - triangle.p3).length();
+                    let c = (triangle.p3 - triangle.p1).length();
+                    unit = unit.min(a).min(b).min(c);
+                }
+                let dbound = bound_max - bound_min;
+                let dx = dbound.x.abs().div_euclid(unit) as u32 + 1;
+                let dy = dbound.y.abs().div_euclid(unit) as u32 + 1;
+                let dz = dbound.z.abs().div_euclid(unit) as u32 + 1;
+
+                let bound_min = bound_min - 0.5 * unit * Vec3A::ONE;
+                let bound_max = bound_max + 0.5 * unit * Vec3A::ONE;
+
+                let mut tree: Tree = Tree {keys: HashMap::new(), values: Vec::new()};
+                // let mut neighbors: Neighbors = Vec::new();
+                // for _ in 0..triangles.len() {
+                //     neighbors.push(HashSet::new());
+                // }
+                let div = |x: f32| x.div_euclid(unit) as u32;
+                for (index, triangle) in triangles.iter().enumerate() {
+                    for point in [triangle.p1, triangle.p2, triangle.p3].iter() {
+                        let point = *point - bound_min;
+                        let xdiv = div(point.x);
+                        let ydiv = div(point.y);
+                        let zdiv = div(point.z);
+                        // println!("point = {:?}", point);
+                        // println!("xdiv = {:?}", xdiv);
+                        // println!("ydiv = {:?}", ydiv);
+                        // println!("zdiv = {:?}", zdiv);
+                        let key = dy * dx * zdiv + dx * ydiv + xdiv;
+                        // println!("key = {:?}", key);
+                        if !tree.keys.contains_key(&key) { tree.insert_key(key);}
+                        tree.insert(&key, index);
+                    }
                 }
 
-                let mut radii = Vec::from_iter(hs);
-                radii.sort();
-                
-                let hashtable: HashMap<i32, Triangle> = triangles.iter().map(|t| (hash_function(&t.center), *t)).collect();
-                Ok(Mesh { triangles, center: mesh_center, rtree, radii, hashtable, max_radius})
+                // println!("tree.keys = {:?}", tree.keys);
+                // println!("tree.values = {:?}", tree.values);
+                // println!("unit = {:?}", unit);
+                // println!("bound_min = {:?}", bound_min);
+                // println!("bound_max = {:?}", bound_max);
+                // println!("dx = {:?}", dx);
+                // println!("dy = {:?}", dy);
+                // println!("dz = {:?}", dz);
+                // println!("total points = {:?}", 3 * triangles.len());
+                // println!("total tree = {:?}", tree.values.iter().map(|x: &HashSet<usize>| -> usize { x.len() }).collect::<Vec<usize>>());
+                let package = Package::new(bound_min, bound_max);
+                Ok(Mesh { triangles, center: mesh_center, tree, package, dx, dy, dz, unit})
             }
             Err(x) => return Err(x)
         }
     }
 
-    fn _smallest_spherical_intersection(&self, ray_origin: Vec3A, ray_direction: Vec3A) -> Option<Vec3A> {
-        let i = ray_origin - ray_direction.dot(ray_origin - self.center) / ray_direction.length_squared() * ray_direction;
-        if (i - ray_origin).dot(ray_direction) > 0. { Some(i) } else { None }
+    fn _div(&self, x: f32) -> u32 {
+        x.div_euclid(self.unit) as u32
     }
 
-    fn _spherical_intersection(&self, radius: f32, ray_origin: Vec3A, ray_direction: Vec3A) -> Option<Vec3A> {
-        let oa = ray_origin - self.center;
-        let a = ray_direction.length_squared();
-        let b = 2. * oa.dot(ray_direction);
-        let c = oa.length_squared() - radius * radius;
-        let delta = b * b - 4. * a * c;
-        // println!("ray_origin = {:?}", ray_origin);
-        // println!("ray_direction = {:?}", ray_direction);
-        // println!("radius = {:?}", radius);
-        // println!("center = {:?}", self.center);
-        // println!("a = {:?}", a);
-        // println!("b = {:?}", b);
-        // println!("c = {:?}", c);
-        // println!("delta = {:?}", delta);
-        if delta > 0. {
-            let sdelta = delta.sqrt();
-            let t1 = (-b - sdelta) / (2. * a);
-            let t2 = (-b + sdelta) / (2. * a);
-            Some(ray_origin + t1.min(t2) * ray_direction)
-        } else if delta == 0. {
-            let t = -b / (2. * a);
-            Some(ray_origin + t * ray_direction)
-        } else {
-            None
-        }
+    fn _compute_key(&self, point: Vec3A) -> u32 {
+        println!("point = {:?}", point);
+        let point = point - self.package.bound_min;
+        println!("point = {:?}", point);
+        let xdiv = self._div(point.x).min(self.dx - 1);
+        let ydiv = self._div(point.y).min(self.dy - 1);
+        let zdiv = self._div(point.z).min(self.dz - 1);
+        println!("xdiv = {:?}", xdiv);
+        println!("ydiv = {:?}", ydiv);
+        println!("zdiv = {:?}", zdiv);
+        // println!("self.dx = {:?}", self.dx);
+        // println!("self.dy = {:?}", self.dy);
+        // println!("self.dz = {:?}", self.dz);
+        // println!("self.package.bound_min = {:?}", self.package.bound_min);
+        // println!("self.package.bound_max = {:?}", self.package.bound_max);
+        self.dy * self.dx * zdiv + self.dx * ydiv + xdiv
     }
 
-    fn _search(&self, target: u32) -> usize {
-        let length = self.radii.len();
-        if self.radii[0] > target {
-            0
-        }
-        else if self.radii[length - 1] <= target {
-            length - 1
-        }
-        else {
-            let mut d = 4;
-            let mut middle = length / 2;
-            while !(self.radii[middle - 1] <= target && target <= self.radii[middle]){
-                let a = length / d;
-                if self.radii[middle - 1] == self.radii[middle] {
-                    break;
-                } else if target < self.radii[middle] {
-                    middle -= if a != 0 { a } else {1};
-                } else {
-                    middle += if a != 0 { a } else {1};
-                }
-                d = 2 * d.min(length);
-            }
-            middle
-        }
+    fn _hit_package(&self, ray_origin: Vec3A, ray_direction: Vec3A) -> Option<[(u32, Vec3A); 2]> {
+        let intersect = |x: &[Vec3A; 4]| -> Option<Vec3A> {intersect_square(x[0], x[1], x[2], x[3], ray_origin, ray_direction)};
+        let compute_dist = |x: &Option<Vec3A>| -> f32 { if let Some(i) = x { (*i - ray_origin).length_squared() } else { f32::INFINITY }};
+        let intersections = self.package.iter().map(intersect).filter(|x| x.is_some()).collect::<Vec<Option<Vec3A>>>();
+        println!("intersections = {:?}", intersections);
+        println!("dists = {:?}", intersections.iter().map(compute_dist).collect::<Vec<f32>>());
+        if intersections.len() > 0 {
+            let in_intersection = intersections.iter().min_by(|a, b| compute_dist(a).partial_cmp(&compute_dist(b)).unwrap());
+            let out_intersection = intersections.iter().max_by(|a, b| compute_dist(a).partial_cmp(&compute_dist(b)).unwrap());
+            if let Some(Some(in_point)) = in_intersection {
+                if let Some(Some(out_point)) = out_intersection {
+                        Some([(self._compute_key(*in_point), *in_point), (self._compute_key(*out_point), *out_point)]) 
+                } else { None }
+            } else { None }
+        } else { None }
     }
 
     pub fn intersect(&self, ray_origin: Vec3A, ray_direction: Vec3A) -> Option<[Vec3A; 2]> {
-        match self._smallest_spherical_intersection(ray_origin, ray_direction) {
-            Some(imin) => {
-                // println!("imin = {:?}", imin);
-                match self._spherical_intersection(self.max_radius, ray_origin, ray_direction) {
-                    Some(imax) => {
-                        // println!("imax = {:?}", imax);
-                        let get_radius = |x: Vec3A| -> f32 { (x - self.center).length() };
-                        let to_u32 = |x:f32| (x * 100_000.) as u32;
-                        let to_f32 = |x:u32| x as f32 * 1e-6;
-                        let min_radius = get_radius(imin);
-                        let index_min = self._search(to_u32(min_radius));
-                        let index_min = if index_min > 0 { 0.min(index_min - 1) } else { index_min };
-                        let mut index = self._search(to_u32(get_radius(imax)));
-                        let mut radius = self.radii[index];
-                        let mut current_point = imax;
-                        let mut result : Option<[Vec3A; 2]> = None;
-                        let mut found = false;
-                        let mut dist = f32::INFINITY;
-                        while index >= index_min {
-                            let candidates = self.rtree[&radius].nearest_neighbor_iter(&current_point.to_array());
-                            for triangle in candidates.map(|x| self.hashtable[&hash_function(&Vec3A::from_array(*x))]) {
-                                match intersect_triangle(triangle.p1, triangle.p2, triangle.p3, ray_origin, ray_direction) {
-                                    Some(sol) => { 
-                                        let d = (sol - ray_origin).length();
-                                        if  d < dist {
-                                            result = Some([sol, triangle.normal]);
-                                            found = true;
-                                            dist = d;
-                                        } else {
-                                            continue;
-                                        }
-                                    }
-                                    None => { continue; }
-                                }
-                            }
-                            if found { break; }
-                            if index == 0 { break; } else {index = index - 1};
-                            radius = self.radii[index];
-                            match self._spherical_intersection(to_f32(radius), ray_origin, ray_direction) {
-                                Some(point) => {current_point = point }
-                                None => { break; }
-                            }
-                        }
-                        result
-                    }
-                    None => None
+        if let Some([(in_key, in_point), (out_key, out_point)]) = self._hit_package(ray_origin, ray_direction) {
+            println!("in_key = {:?}", in_key);
+            println!("out_key = {:?}", out_key);
+            // println!("ray_origin = {:?}", ray_origin);
+            // println!("ray_direction = {:?}", ray_direction);
+            println!("tree.keys = {:?}", self.tree.keys);
+            println!("tree.values = {:?}", self.tree.values);
+            let mut key = in_key;
+            let mut point: Vec3A = Vec3A::ZERO;
+            let mut normal: Vec3A = Vec3A::ZERO;
+            let mut min_dist = f32::INFINITY;
+            let mut found = false;
+            for (index, triangle) in self.triangles.iter().enumerate() {
+                if let Some(x) = intersect_triangle(triangle.p1, triangle.p2, triangle.p3, ray_origin, ray_direction) {
+                    println!("distance to ray_origin = {:?}", (x - ray_origin).length());
+                    println!("index of triangle = {:?}", index);
+                    println!("point of intersection = {:?}", x);
+                } else { continue; }
+            }
+
+            // while key < self.dz * self.dy * self.dx {
+            for index in self.tree.get(&key).iter() {
+                println!("index = {:?}", index);
+                let triangle = self.triangles[*index];
+                let i2t = intersect_triangle(triangle.p1, triangle.p2, triangle.p3, ray_origin, ray_direction);
+                // println!("i2t = {:?}", i2t);
+                if let Some(x) = i2t {
+                    println!("x = {:?}", x);
+                    let dist = (x - ray_origin).length_squared();
+                    println!("dist = {:?}", dist);
+                    println!("min_dist = {:?}", dist);
+                    if min_dist > dist {
+                        normal = triangle.normal;
+                        point = x;
+                        min_dist = dist;
+                        found = true;
+                    } else { continue; }
+                } else { continue; }
+            }
+            if !found {
+                key = out_key;
+                for index in self.tree.get(&key).iter() {
+                    // println!("index = {:?}", index);
+                    let triangle = self.triangles[*index];
+                    let i2t = intersect_triangle(triangle.p1, triangle.p2, triangle.p3, ray_origin, ray_direction);
+                    // println!("i2t = {:?}", i2t);
+                    if let Some(x) = i2t {
+                        // println!("ok");
+                        let dist = (x - ray_origin).length();
+                        // println!("dist = {:?}", dist);
+                        // println!("min_dist = {:?}", dist);
+                        if min_dist > dist {
+                            normal = triangle.normal;
+                            point = x;
+                            min_dist = dist;
+                            found = true;
+                        } else { continue; }
+                    } else { continue; }
                 }
             }
-            None => None
-        }
+            // }
+            if found { Some([point, normal]) } else {
+                // println!("origin = {:?}, direction = {:?}", ray_origin, ray_direction);
+                None
+            }
+        } else { None }
     }
 }

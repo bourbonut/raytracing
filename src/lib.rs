@@ -1,6 +1,7 @@
 pub mod engine;
 pub mod utils;
 pub mod mesh;
+pub mod path;
 
 use std::time::Instant;
 use glam::Vec3A;
@@ -70,15 +71,20 @@ pub fn small_test() {
     let file = File::open("cube.stl");
     match file{
         Ok(mut x) => {
+            let now = Instant::now();
             let mesh = Mesh::new(&mut x);
-            let ray_origin = Vec3A::new(0., 0., 0.3);
-            let ray_direction = Vec3A::new(0., -0.01, -0.31);
+            let new_now = Instant::now();
+            println!("initialization duration = {:?}", new_now - now);
+            // let ray_origin = Vec3A::new(0., 0., 0.3);
+            // let ray_direction = Vec3A::new(0., -0.01, -0.31);
+            let ray_origin = Vec3A::new(-0.440225, 0.17609, 0.880451);
+            let ray_direction = Vec3A::new(0.47642, -0.199259, -0.856341);
             match mesh {
                 Ok(m) => { 
                     let now = Instant::now();
                     let x = m.intersect(ray_origin, ray_direction);
                     let new_now = Instant::now();
-                    println!("{:?}", new_now - now);
+                    println!("intersection duration = {:?}", new_now - now);
                     match x {
                             Some(x) => {
                                 let a = x[0];
@@ -99,8 +105,8 @@ pub fn small_test() {
 }
 
 pub fn cube_raytracing() {
-    let width = 1920;
-    let height = 1080;
+    let width = 192 * 2;
+    let height = 108 * 2;
     let ratio: f32 = width as f32 / height as f32;
     let screen = (-1., 1. / ratio, 1., -1. / ratio);
     let mut pixels = Array2::<Vec3A>::default((height, width));
@@ -116,7 +122,7 @@ pub fn cube_raytracing() {
     }
 
     // let file = File::open("cube.stl");
-    let file = File::open("bevelgear.stl");
+    let file = File::open("cube.stl");
     match file {
         Ok(mut x) => {
             let mesh = Mesh::new(&mut x);
