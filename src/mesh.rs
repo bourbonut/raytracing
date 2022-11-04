@@ -29,7 +29,7 @@ pub struct Package{
 
 #[derive(Default, Clone)]
 pub struct Tree{
-    pub keys: HashMap<u32, usize>,
+    pub keys: HashMap<[u32; 3], usize>,
     pub values: Vec<HashSet<usize>>,
 }
 
@@ -100,25 +100,25 @@ impl Package {
 }
 
 impl Tree {
-    pub fn contains(&self, key: &u32, value: &usize) -> bool {
+    pub fn contains(&self, key: &[u32; 3], value: &usize) -> bool {
         self.values[self.keys[key]].contains(value)
     }
 
-    pub fn contains_key(&self, key: &u32) -> bool {
+    pub fn contains_key(&self, key: &[u32; 3]) -> bool {
         self.keys.contains_key(key)
     }
 
-    pub fn insert_key(&mut self, key:u32) {
+    pub fn insert_key(&mut self, key:[u32; 3]) {
         let length = self.values.len();
         self.keys.insert(key, length);
         self.values.push(HashSet::new());
     }
 
-    pub fn insert(&mut self, key: &u32, value: usize) -> bool {
+    pub fn insert(&mut self, key: &[u32; 3], value: usize) -> bool {
         self.values[self.keys[key]].insert(value)
     }
 
-    pub fn get(&self, key: &u32) -> &HashSet<usize> {
+    pub fn get(&self, key: &[u32; 3]) -> &HashSet<usize> {
         &self.values[self.keys[key]]
     }
 }
@@ -168,19 +168,37 @@ impl Mesh {
                 // }
                 let div = |x: f32| x.div_euclid(unit) as u32;
                 for (index, triangle) in triangles.iter().enumerate() {
-                    for point in [triangle.p1, triangle.p2, triangle.p3].iter() {
+                    let mut keys: [[u32; 3]; 3] = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+                    let points = [triangle.p1, triangle.p2, triangle.p3];
+                    for (i, point) in points.iter().enumerate() {
+                        // println!("1");
                         let point = *point - bound_min;
                         let xdiv = div(point.x);
                         let ydiv = div(point.y);
                         let zdiv = div(point.z);
-                        // println!("point = {:?}", point);
                         // println!("xdiv = {:?}", xdiv);
                         // println!("ydiv = {:?}", ydiv);
                         // println!("zdiv = {:?}", zdiv);
-                        let key = dy * dx * zdiv + dx * ydiv + xdiv;
-                        // println!("key = {:?}", key);
-                        if !tree.keys.contains_key(&key) { tree.insert_key(key);}
-                        tree.insert(&key, index);
+                        // println!("dx = {:?}", dx);
+                        // println!("dy = {:?}", dy);
+                        // println!("dz = {:?}", dz);
+                        // println!("total = {:?}", dz * dy * dx);
+                        keys[i] = [xdiv, ydiv, zdiv];
+                        // println!("2");
+                    }
+                    // for key in keys.iter() {
+                    //         if !tree.keys.contains_key(key) { tree.insert_key(*key);}
+                    //         tree.insert(&key, index);
+                    // }
+                    let mut global_path = Path::new(keys[0], points[0] - bound_min, keys[1], points[1] - bound_min, unit, dx, dy, dz);
+                    while global_path.next() {
+                        let mut local_path = Path::new(keys[2], points[2] - bound_min, global_path.current_key, global_path.current_point, unit, dx, dy, dz);
+                        while local_path.next() {
+                            let key = local_path.current_key;
+                            // println!("key = {:?}", key);
+                            if !tree.keys.contains_key(&key) { tree.insert_key(key);}
+                            tree.insert(&key, index);
+                        }
                     }
                 }
 
@@ -205,7 +223,7 @@ impl Mesh {
         x.div_euclid(self.unit) as u32
     }
 
-    fn _compute_key(&self, point: Vec3A) -> u32 {
+    fn _compute_key(&self, point: Vec3A) -> [u32; 3] {
         // println!("point = {:?}", point);
         let point = point - self.package.bound_min;
         // println!("point = {:?}", point);
@@ -220,10 +238,10 @@ impl Mesh {
         // println!("self.dz = {:?}", self.dz);
         // println!("self.package.bound_min = {:?}", self.package.bound_min);
         // println!("self.package.bound_max = {:?}", self.package.bound_max);
-        self.dy * self.dx * zdiv + self.dx * ydiv + xdiv
+        [xdiv, ydiv, zdiv]
     }
 
-    fn _hit_package(&self, ray_origin: Vec3A, ray_direction: Vec3A) -> Option<[(u32, Vec3A); 2]> {
+    fn _hit_package(&self, ray_origin: Vec3A, ray_direction: Vec3A) -> Option<[([u32; 3], Vec3A); 2]> {
         let intersect = |x: &[Vec3A; 4]| -> Option<Vec3A> {intersect_square(x[0], x[1], x[2], x[3], ray_origin, ray_direction)};
         let compute_dist = |x: &Option<Vec3A>| -> f32 { if let Some(i) = x { (*i - ray_origin).length_squared() } else { f32::INFINITY }};
         let intersections = self.package.iter().map(intersect).filter(|x| x.is_some()).collect::<Vec<Option<Vec3A>>>();
@@ -268,30 +286,32 @@ impl Mesh {
             // println!("in_point = {:?}", in_point - self.package.bound_min);
             // println!("out_point = {:?}", out_point - self.package.bound_min);
             let mut path = Path::new(in_key, in_point - self.package.bound_min, out_key, out_point - self.package.bound_min, self.unit, self.dx, self.dy, self.dz);
-            // dbg!(&path);
+            // println!("{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?}", in_key, in_point - self.package.bound_min, out_key, out_point - self.package.bound_min, self.unit, self.dx, self.dy, self.dz);
             while path.next() {
                 let mut min_dist = f32::INFINITY;
                 let key = path.current_key;
                 // println!("key = {:?}", key);
-                for index in self.tree.get(&key).iter() {
-                    // println!("index = {:?}", index);
-                    let triangle = self.triangles[*index];
-                    let i2t = intersect_triangle(triangle.p1, triangle.p2, triangle.p3, ray_origin, ray_direction);
-                    // println!("i2t = {:?}", i2t);
-                    if let Some(x) = i2t {
-                        // println!("x = {:?}", x);
-                        let dist = (x - ray_origin).length_squared();
-                        // println!("dist = {:?}", dist);
-                        // println!("min_dist = {:?}", dist);
-                        if min_dist > dist {
-                            normal = triangle.normal;
-                            point = x;
-                            min_dist = dist;
-                            found = true;
+                if self.tree.contains_key(&key) {
+                    for index in self.tree.get(&key).iter() {
+                        // println!("index = {:?}", index);
+                        let triangle = self.triangles[*index];
+                        let i2t = intersect_triangle(triangle.p1, triangle.p2, triangle.p3, ray_origin, ray_direction);
+                        // println!("i2t = {:?}", i2t);
+                        if let Some(x) = i2t {
+                            // println!("x = {:?}", x);
+                            let dist = (x - ray_origin).length_squared();
+                            // println!("dist = {:?}", dist);
+                            // println!("min_dist = {:?}", dist);
+                            if min_dist > dist {
+                                normal = triangle.normal;
+                                point = x;
+                                min_dist = dist;
+                                found = true;
+                            } else { continue; }
                         } else { continue; }
-                    } else { continue; }
+                    }
+                    if found { break; }
                 }
-                if found { break; }
             }
             if found { Some([point, normal]) } else {
                 // println!("origin = {:?}, direction = {:?}", ray_origin, ray_direction);

@@ -14,6 +14,7 @@ use crate::engine::RTEngine;
 
 use std::fs::File;
 use crate::mesh::Mesh;
+use crate::path::Path;
 
 // pub fn run_lib() {
 //     let width = 1920;
@@ -105,10 +106,10 @@ pub fn small_test() {
 }
 
 pub fn cube_raytracing() {
-    // let width = 192 * 2;
-    // let height = 108 * 2;
-    let width = 1920;
-    let height = 1080;
+    let width = 192 * 2;
+    let height = 108 * 2;
+    // let width = 1920;
+    // let height = 1080;
     let ratio: f32 = width as f32 / height as f32;
     let screen = (-1., 1. / ratio, 1., -1. / ratio);
     let mut pixels = Array2::<Vec3A>::default((height, width));
@@ -124,10 +125,11 @@ pub fn cube_raytracing() {
     }
 
     // let file = File::open("cube.stl");
-    let file = File::open("cube.stl");
+    let file = File::open("bevelgear.stl");
     match file {
         Ok(mut x) => {
             let mesh = Mesh::new(&mut x);
+            println!("Mesh initialized.");
             match mesh {
                 Ok(cube) => {
                     let white_material = Material {
@@ -163,5 +165,17 @@ pub fn cube_raytracing() {
             }
         }
         Err(_) => { println!("Impossible to open the cube file") }
+    }
+}
+
+pub fn quick_path_test() {
+    let mut path = Path::new([596, 1892, 1406], Vec3A::new(8.325672, 26.401674, 19.644814), [0, 2337, 393], Vec3A::new(0.0, 32.612343, 5.4935417), 0.013954204, 2689, 2689, 1407);
+    // let mut path = Path::new([0, 0, 1], Vec3A::new(0.5, 0.3, 1.5), [1, 1, 0], Vec3A::new(1.7, 1.7, 0.4), 1., 2, 2, 2);
+    println!("unit = {:?}", 0.013954204);
+    for _ in 0..10000 {
+        path.next();
+        // println!("path.current_key = {:?}", path.current_key);
+        // println!("path.current_point = {:?}", path.current_point);
+        println!("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
     }
 }
