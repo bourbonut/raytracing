@@ -3,7 +3,7 @@ use crate::mesh::Mesh;
 // use crate::utils::geometry::Line;
 // use crate::utils::geometry::Point;
 
-use glam::{Vec3A, Vec3, Affine3A, Quat};
+use glam::Vec3A;
 use ndarray::Array2;
 
 // Avoid recurrent algorithm
@@ -81,15 +81,20 @@ impl RTEngine {
 
             // Intersection computation
             let intersection = point_normal[0];
-            println!("intersection = {:?}", intersection);
-            println!("origin = {:?}, direction = {:?}", origin, direction);
+            // println!("intersection = {:?}", intersection);
+            // println!("origin = {:?}, direction = {:?}", origin, direction);
             let normal_to_surface = point_normal[1].normalize();
             let shifted_point = intersection + 1e-5 * normal_to_surface;
             let intersection_to_light = (self.pos_light - shifted_point).normalize();
 
-            let (_, min_distance, _): (i32, f32, [Vec3A; 2]) =
+            let (_, min_distance, _point_normal): (i32, f32, [Vec3A; 2]) =
                 self._nearest_intersected_object(shifted_point, intersection_to_light);
+            // println!("shifted_point = {:?}", shifted_point);
+            // println!("intersection_to_light = {:?}", intersection_to_light);
+            // println!("intersection (bis) = {:?}", point_normal[0]);
+            // println!("origin = {:?}, direction = {:?}", shifted_point, intersection_to_light);
             let intersection_to_light_distance = (self.pos_light - intersection).length();
+
             // println!("min_distance = {:?}, intersection_to_light = {:?}", (shifted_point - point_normal[0]).length(), intersection_to_light_distance);
             if min_distance < intersection_to_light_distance {
                 break;

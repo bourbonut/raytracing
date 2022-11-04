@@ -15,7 +15,8 @@ pub fn intersect_plane(point:Vec3A, normal:Vec3A, ray_origin:Vec3A, ray_directio
     if denom == 0.0 {
         None
     } else {
-        Some(ray_origin + ((point - ray_origin).dot(normal) / denom) * ray_direction)
+        let t = (point - ray_origin).dot(normal) / denom;
+        if t > 0. { Some(ray_origin + t * ray_direction) } else { None }
     }
 }
 

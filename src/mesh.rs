@@ -1,6 +1,6 @@
-// use crate::utils::intersect_triangle;
+use crate::path::Path;
 use stl::read_stl;
-use glam::{Vec3A, Vec3};
+use glam::Vec3A;
 use std::fs::File;
 use std::io::Result;
 use std::slice::Iter;
@@ -206,15 +206,15 @@ impl Mesh {
     }
 
     fn _compute_key(&self, point: Vec3A) -> u32 {
-        println!("point = {:?}", point);
+        // println!("point = {:?}", point);
         let point = point - self.package.bound_min;
-        println!("point = {:?}", point);
+        // println!("point = {:?}", point);
         let xdiv = self._div(point.x).min(self.dx - 1);
         let ydiv = self._div(point.y).min(self.dy - 1);
         let zdiv = self._div(point.z).min(self.dz - 1);
-        println!("xdiv = {:?}", xdiv);
-        println!("ydiv = {:?}", ydiv);
-        println!("zdiv = {:?}", zdiv);
+        // println!("xdiv = {:?}", xdiv);
+        // println!("ydiv = {:?}", ydiv);
+        // println!("zdiv = {:?}", zdiv);
         // println!("self.dx = {:?}", self.dx);
         // println!("self.dy = {:?}", self.dy);
         // println!("self.dz = {:?}", self.dz);
@@ -227,8 +227,8 @@ impl Mesh {
         let intersect = |x: &[Vec3A; 4]| -> Option<Vec3A> {intersect_square(x[0], x[1], x[2], x[3], ray_origin, ray_direction)};
         let compute_dist = |x: &Option<Vec3A>| -> f32 { if let Some(i) = x { (*i - ray_origin).length_squared() } else { f32::INFINITY }};
         let intersections = self.package.iter().map(intersect).filter(|x| x.is_some()).collect::<Vec<Option<Vec3A>>>();
-        println!("intersections = {:?}", intersections);
-        println!("dists = {:?}", intersections.iter().map(compute_dist).collect::<Vec<f32>>());
+        // println!("intersections = {:?}", intersections);
+        // println!("dists = {:?}", intersections.iter().map(compute_dist).collect::<Vec<f32>>());
         if intersections.len() > 0 {
             let in_intersection = intersections.iter().min_by(|a, b| compute_dist(a).partial_cmp(&compute_dist(b)).unwrap());
             let out_intersection = intersections.iter().max_by(|a, b| compute_dist(a).partial_cmp(&compute_dist(b)).unwrap());
@@ -242,54 +242,45 @@ impl Mesh {
 
     pub fn intersect(&self, ray_origin: Vec3A, ray_direction: Vec3A) -> Option<[Vec3A; 2]> {
         if let Some([(in_key, in_point), (out_key, out_point)]) = self._hit_package(ray_origin, ray_direction) {
-            println!("in_key = {:?}", in_key);
-            println!("out_key = {:?}", out_key);
+            // println!("in_key = {:?}", in_key);
+            // println!("out_key = {:?}", out_key);
             // println!("ray_origin = {:?}", ray_origin);
             // println!("ray_direction = {:?}", ray_direction);
-            println!("tree.keys = {:?}", self.tree.keys);
-            println!("tree.values = {:?}", self.tree.values);
-            let mut key = in_key;
+            // println!("unit = {:?}", self.unit);
+            // println!("tree.keys = {:?}", self.tree.keys);
+            // println!("tree.values = {:?}", self.tree.values);
+            
+            // for DEBUG
+            // for (index, triangle) in self.triangles.iter().enumerate() {
+            //     if let Some(x) = intersect_triangle(triangle.p1, triangle.p2, triangle.p3, ray_origin, ray_direction) {
+            //         println!("distance to ray_origin = {:?}", (x - ray_origin).length());
+            //         println!("index of triangle = {:?}", index);
+            //         println!("point of intersection = {:?}", x);
+            //         // let normal = (triangle.p2 - triangle.p1).cross(triangle.p3 - triangle.p1);
+            //         // let denom = normal.dot(ray_direction);
+            //         // println!("t = {:?}", (triangle.p1 - ray_origin).dot(normal) / denom);
+            //     } else { continue; }
+            // }
+
             let mut point: Vec3A = Vec3A::ZERO;
             let mut normal: Vec3A = Vec3A::ZERO;
-            let mut min_dist = f32::INFINITY;
             let mut found = false;
-            for (index, triangle) in self.triangles.iter().enumerate() {
-                if let Some(x) = intersect_triangle(triangle.p1, triangle.p2, triangle.p3, ray_origin, ray_direction) {
-                    println!("distance to ray_origin = {:?}", (x - ray_origin).length());
-                    println!("index of triangle = {:?}", index);
-                    println!("point of intersection = {:?}", x);
-                } else { continue; }
-            }
-
-            // while key < self.dz * self.dy * self.dx {
-            for index in self.tree.get(&key).iter() {
-                println!("index = {:?}", index);
-                let triangle = self.triangles[*index];
-                let i2t = intersect_triangle(triangle.p1, triangle.p2, triangle.p3, ray_origin, ray_direction);
-                // println!("i2t = {:?}", i2t);
-                if let Some(x) = i2t {
-                    println!("x = {:?}", x);
-                    let dist = (x - ray_origin).length_squared();
-                    println!("dist = {:?}", dist);
-                    println!("min_dist = {:?}", dist);
-                    if min_dist > dist {
-                        normal = triangle.normal;
-                        point = x;
-                        min_dist = dist;
-                        found = true;
-                    } else { continue; }
-                } else { continue; }
-            }
-            if !found {
-                key = out_key;
+            // println!("in_point = {:?}", in_point - self.package.bound_min);
+            // println!("out_point = {:?}", out_point - self.package.bound_min);
+            let mut path = Path::new(in_key, in_point - self.package.bound_min, out_key, out_point - self.package.bound_min, self.unit, self.dx, self.dy, self.dz);
+            // dbg!(&path);
+            while path.next() {
+                let mut min_dist = f32::INFINITY;
+                let key = path.current_key;
+                // println!("key = {:?}", key);
                 for index in self.tree.get(&key).iter() {
                     // println!("index = {:?}", index);
                     let triangle = self.triangles[*index];
                     let i2t = intersect_triangle(triangle.p1, triangle.p2, triangle.p3, ray_origin, ray_direction);
                     // println!("i2t = {:?}", i2t);
                     if let Some(x) = i2t {
-                        // println!("ok");
-                        let dist = (x - ray_origin).length();
+                        // println!("x = {:?}", x);
+                        let dist = (x - ray_origin).length_squared();
                         // println!("dist = {:?}", dist);
                         // println!("min_dist = {:?}", dist);
                         if min_dist > dist {
@@ -300,8 +291,8 @@ impl Mesh {
                         } else { continue; }
                     } else { continue; }
                 }
+                if found { break; }
             }
-            // }
             if found { Some([point, normal]) } else {
                 // println!("origin = {:?}, direction = {:?}", ray_origin, ray_direction);
                 None

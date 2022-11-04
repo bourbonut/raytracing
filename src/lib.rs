@@ -77,8 +77,8 @@ pub fn small_test() {
             println!("initialization duration = {:?}", new_now - now);
             // let ray_origin = Vec3A::new(0., 0., 0.3);
             // let ray_direction = Vec3A::new(0., -0.01, -0.31);
-            let ray_origin = Vec3A::new(-0.440225, 0.17609, 0.880451);
-            let ray_direction = Vec3A::new(0.47642, -0.199259, -0.856341);
+            let ray_origin = Vec3A::new(0.047127932, -0.04722385, 0.05000995);
+            let ray_direction = Vec3A::new(0.5763695, 0.5793987, 0.576277);
             match mesh {
                 Ok(m) => { 
                     let now = Instant::now();
@@ -105,8 +105,10 @@ pub fn small_test() {
 }
 
 pub fn cube_raytracing() {
-    let width = 192 * 2;
-    let height = 108 * 2;
+    // let width = 192 * 2;
+    // let height = 108 * 2;
+    let width = 1920;
+    let height = 1080;
     let ratio: f32 = width as f32 / height as f32;
     let screen = (-1., 1. / ratio, 1., -1. / ratio);
     let mut pixels = Array2::<Vec3A>::default((height, width));
