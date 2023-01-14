@@ -2,6 +2,7 @@
 
 The goal of this project is to implement a raytracing algorithm in Rust
 
-First output
+## Current status
 
-![first-output](./docs/first-output.png)
+
+![output](./output.png)
